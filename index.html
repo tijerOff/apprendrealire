@@ -12,7 +12,7 @@
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
 </head>
 <body>
-<title>Lire avec les ponts</title>
+<title>Lire avec Alvarez</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,6 +31,9 @@
   --syl-a: #d7263d;       /* syllabe 1 : rouge */
   --syl-b: #1f4fd1;       /* syllabe 2 : bleu */
   --muet: #a7acbe;        /* lettres muettes */
+  --vow: #d7263d;         /* code Alvarez : voyelles en rouge */
+  --con: #1f4fd1;         /* consonnes en bleu */
+  --dig: #0f8a52;         /* sons à plusieurs lettres en vert */
   --accent: #1f4fd1;
   --accent-ink: #ffffff;
   --chip: #dfe5f5;
@@ -87,6 +90,7 @@ body {
   box-shadow: 0 1px 0 var(--rule), 0 10px 30px -18px rgba(31, 36, 64, .45);
   overflow: hidden;
   display: grid; place-items: center;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   touch-action: pan-y;
   user-select: none;
@@ -102,6 +106,8 @@ body {
 }
 .stage {
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 24px 20px 30px 52px;
   box-sizing: border-box;
   text-align: center;
@@ -134,7 +140,15 @@ body {
 .word.arcs.color .syl.c0 { background-image: var(--arc-a); }
 .word.arcs.color .syl.c1 { background-image: var(--arc-b); }
 .word.arcs:not(.color) .syl { background-image: var(--arc-ink); }
+.word.alv .lv { color: var(--vow); }
+.word.alv .lc { color: var(--con); }
+.word.alv .ld { color: var(--dig); }
 .word .m { color: var(--muet); }
+.word.fuse .part { display: inline-block; transition: margin-left .6s cubic-bezier(.3,1.4,.5,1); }
+.word.fuse .part + .part { margin-left: 1.1em; }
+.word.fuse.fused .part + .part { margin-left: 0; }
+.fuse-hint { font: 400 16px/1.3 var(--font-ui); color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { .word.fuse .part { transition: none; } }
 .word.bold .snd { font-weight: 700; }
 .word.cursive.bold .snd { font-weight: 400; }
 
@@ -211,15 +225,17 @@ button:focus-visible, input:focus-visible + span { outline: 3px solid #f2b705; o
 .pool { font-size: 15px; color: var(--ink-soft); }
 .pool b { color: var(--ink); }
 .btn-close { background: var(--accent); color: var(--accent-ink); padding: 0 22px; min-height: 48px; font-size: 18px; border-radius: 999px; }
-.sample { font-family: var(--font-script); font-size: 34px; line-height: 1.5; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: 15px; }
+.legend b { font-weight: 700; }
+.legend .lv { color: var(--vow); } .legend .lc { color: var(--con); } .legend .ld { color: var(--dig); } .legend .m { color: var(--muet); }
 </style>
 
 <div class="app" id="app">
   <header class="top">
-    <button class="level-chip" id="levelChip" type="button">Niveau 2</button>
+    <button class="level-chip" id="levelChip" type="button">Niveau 1</button>
     <div class="count" id="count" aria-live="polite"><b>0</b> lu</div>
     <div class="top-right">
-      <button class="icon-btn" id="helpBtn" type="button" aria-pressed="false" title="Cacher les couleurs et les ponts">
+      <button class="icon-btn" id="helpBtn" type="button" aria-pressed="false" title="Cacher les couleurs">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
       <button class="icon-btn" id="settingsBtn" type="button" title="Réglages" aria-label="Réglages">
@@ -256,12 +272,12 @@ button:focus-visible, input:focus-visible + span { outline: 3px solid #f2b705; o
     <div class="group">
       <h3>Quoi lire</h3>
       <div class="seg" id="modeSeg">
-        <label><input type="radio" name="mode" id="mode-syll" value="syll"><span>Syllabes</span></label>
+        <label><input type="radio" name="mode" id="mode-fusion" value="fusion"><span>Fusion (m + a → ma)</span></label>
         <label><input type="radio" name="mode" id="mode-mots" value="mots"><span>Vrais mots</span></label>
         <label><input type="radio" name="mode" id="mode-inv" value="inv"><span>Mots inventés</span></label>
         <label><input type="radio" name="mode" id="mode-mix" value="mix"><span>Mélange</span></label>
       </div>
-      <p class="hint">Les mots inventés obligent à déchiffrer : impossible de les reconnaître par cœur.</p>
+      <p class="hint">Fusion : les deux sons arrivent séparés, l'enfant les dit en les prolongeant (« mmm… aaa »), puis « Suivant » les colle pour lire « ma ». Les mots inventés obligent à déchiffrer : impossible de les reconnaître par cœur.</p>
     </div>
 
     <div class="group">
@@ -297,16 +313,19 @@ button:focus-visible, input:focus-visible + span { outline: 3px solid #f2b705; o
         <label><input type="radio" name="font" id="font-cursive" value="cursive"><span style="font-family: var(--font-cursive)">Cursive</span></label>
         <label><input type="radio" name="font" id="font-caps" value="caps"><span>CAPITALES</span></label>
       </div>
-      <div class="row" style="margin-top: 8px">
-        <div class="row-text">Syllabes en couleur<small>rouge, bleu, rouge…</small></div>
-        <label class="switch"><input type="checkbox" id="optColor"><span></span></label>
+      <h3 style="margin-top: 18px">Couleurs</h3>
+      <div class="seg" id="codeSeg">
+        <label><input type="radio" name="code" id="code-alv" value="alv"><span>Code Alvarez</span></label>
+        <label><input type="radio" name="code" id="code-syl" value="syl"><span>Syllabes rouge / bleu</span></label>
+        <label><input type="radio" name="code" id="code-none" value="none"><span>Noir</span></label>
       </div>
+      <p class="legend" id="legend"><span class="lv"><b>a i o</b> voyelles</span><span class="lc"><b>m l r</b> consonnes</span><span class="ld"><b>ou ch</b> sons à 2 lettres</span><span class="m"><b>t e</b> muettes</span></p>
       <div class="row">
         <div class="row-text">Ponts sous les syllabes</div>
         <label class="switch"><input type="checkbox" id="optArcs"><span></span></label>
       </div>
       <div class="row">
-        <div class="row-text">Sons en gras<small>ch, ou, on… ressortent (écriture script)</small></div>
+        <div class="row-text">Sons en gras<small>ch, ou, c = s… ressortent (écriture script)</small></div>
         <label class="switch"><input type="checkbox" id="optBold"><span></span></label>
       </div>
       <div class="row">
@@ -498,7 +517,7 @@ function analyse(markup) {
       if (matched) {
         const [g, grp, n] = matched;
         groups.add(grp);
-        for (let k = 0; k < n; k++) spoken[i + k].snd = true;
+        for (let k = 0; k < n; k++) { spoken[i + k].snd = true; spoken[i + k].k = "d"; }
         units.push(CONS_GRAPH.has(g) ? "C" : "V");
         i += n;
         continue;
@@ -517,7 +536,14 @@ function analyse(markup) {
         const nx = syl[syl.indexOf(L) + 1];
         if (nx && !isVowel(nrm(nx.c))) { groups.add("e"); L.snd = true; }
       }
-      units.push(isVowel(c) && !(c === "y" && next && isVowel(nrm(next.c))) ? "V" : "C");
+      const vowelSound = isVowel(c) && !(c === "y" && next && isVowel(nrm(next.c)));
+      L.k = vowelSound ? "v" : "c";
+      // « er » final d'un mot de plusieurs syllabes (rocher, dîner) : un seul son, comme dans Lectures naturelles
+      if (c === "e" && si === syls.length - 1 && si > 0 && next && next.c === "r" && !next.m && spoken[i + 1] === next && i + 2 === spoken.length) {
+        L.k = "d"; next.k = "d"; next.snd = true; L.snd = true;
+        units.push("V"); i += 2; continue;
+      }
+      units.push(vowelSound ? "V" : "C");
       i += 1;
     }
     const pat = units.join("");
@@ -588,28 +614,31 @@ function makeInvented(opts) {
   return analyse("pa-li");
 }
 
-function makeSyllableItem(opts) {
-  for (let t = 0; t < 30; t++) {
-    const s = makeSyllable({ ...opts, last: 1 }, 0, null);
+function makeFusion(opts) {
+  for (let t = 0; t < 60; t++) {
+    const s = makeSyllable({ ...opts, hard: false, last: 1 }, 0, null);
+    if (s.text.endsWith("r") || s.text.endsWith("l")) continue;
+    const onsetLen = [...s.text].length - [...s.nucleus].length;
+    if (onsetLen < 1) continue;
     const a = analyse(s.text);
-    if (a.syls[0].length && fits(a, { ...opts, maxLen: 9 }, true)) return a;
+    if (fits(a, { ...opts, hard: false, maxLen: 9 }, true)) return { w: a, kind: "fusion", split: onsetLen, fused: false };
   }
-  return analyse("ma");
+  return { w: analyse("ma"), kind: "fusion", split: 1, fused: false };
 }
 
 /* ------------------------------------------------------------------
    RÉGLAGES
 ------------------------------------------------------------------- */
 const PRESETS = [
-  { id: 1, name: "Niveau 1", desc: "Syllabes simples", s: { mode: "syll", maxLen: 4, muet: false, hard: false, sounds: [] } },
-  { id: 2, name: "Niveau 2", desc: "Petits mots, 4 lettres", s: { mode: "mots", maxLen: 4, muet: false, hard: false, sounds: [] } },
-  { id: 3, name: "Niveau 3", desc: "Mots simples avec lettres muettes", s: { mode: "mots", maxLen: 6, muet: true, hard: false, sounds: [] } },
-  { id: 4, name: "Niveau 4", desc: "Syllabes à 3 lettres (bra, sel)", s: { mode: "mots", maxLen: 7, muet: true, hard: true, sounds: [] } },
-  { id: 5, name: "Niveau 5", desc: "Premiers sons : ou, on, oi, an, ch", s: { mode: "mots", maxLen: 8, muet: true, hard: true, sounds: ["ou", "on", "oi", "an", "ch"] } },
-  { id: 6, name: "Niveau 6", desc: "Tous les sons, tous les mots", s: { mode: "mots", maxLen: 12, muet: true, hard: true, sounds: SOUNDS.map(s => s.id) } }
+  { id: 1, name: "Niveau 1", desc: "Fusion de deux sons : m + a → ma", s: { mode: "fusion", maxLen: 4, muet: false, hard: false, sounds: [] } },
+  { id: 2, name: "Niveau 2", desc: "Petits mots qui s'écrivent comme on les entend", s: { mode: "mots", maxLen: 4, muet: false, hard: false, sounds: [] } },
+  { id: 3, name: "Niveau 3", desc: "Mots plus longs, consonnes qui se suivent (table, mardi)", s: { mode: "mots", maxLen: 6, muet: false, hard: true, sounds: [] } },
+  { id: 4, name: "Niveau 4", desc: "Lettres muettes en gris (robe, chat)", s: { mode: "mots", maxLen: 7, muet: true, hard: true, sounds: [] } },
+  { id: 5, name: "Niveau 5", desc: "Premiers sons en vert : ou, on, an, ch, oi", s: { mode: "mots", maxLen: 8, muet: true, hard: true, sounds: ["ou", "on", "an", "ch", "oi"] } },
+  { id: 6, name: "Niveau 6", desc: "Tous les sons", s: { mode: "mots", maxLen: 12, muet: true, hard: true, sounds: SOUNDS.map(s => s.id) } }
 ];
-const DEFAULTS = { preset: 2, ...PRESETS[1].s, font: "script", color: true, arcs: true, bold: true, paper: true };
-const KEY = "lire-ponts-v1";
+const DEFAULTS = { preset: 1, ...PRESETS[0].s, font: "script", code: "alv", arcs: false, bold: false, paper: true };
+const KEY = "lire-alvarez-v1";
 
 function load() {
   try {
@@ -658,7 +687,7 @@ function drawReal() {
 }
 function draw() {
   const m = state.mode;
-  if (m === "syll") return { w: makeSyllableItem(state), kind: "syll" };
+  if (m === "fusion" || m === "syll") return makeFusion(state);
   if (m === "inv") return { w: makeInvented(state), kind: "inv" };
   if (m === "mix" && Math.random() < 0.35) return { w: makeInvented(state), kind: "inv" };
   const w = drawReal();
@@ -701,42 +730,66 @@ function renderWord(item) {
   const el = document.createElement("div");
   const showAids = !helpHidden;
   el.className = ["word", state.font,
-    showAids && state.color ? "color" : "",
+    showAids && state.code === "syl" ? "color" : "",
+    showAids && state.code === "alv" ? "alv" : "",
+    item.kind === "fusion" ? "fuse" : "", item.fused ? "fused" : "",
     showAids && state.arcs ? "arcs" : "",
     showAids && state.bold ? "bold" : ""].filter(Boolean).join(" ");
   el.setAttribute("aria-label", item.w.syls.flat().map(l => l.c).join(""));
+  const letterSpan = l => {
+    const t = document.createElement("span");
+    t.className = l.m ? "m" : ["l" + (l.k || "c"), l.snd ? "snd" : ""].join(" ").trim();
+    t.textContent = l.c;
+    return t;
+  };
   item.w.syls.forEach((syl, i) => {
     const s = document.createElement("span");
     s.className = "syl c" + (i % 2);
-    syl.forEach(l => {
-      const t = document.createElement("span");
-      if (l.m) t.className = "m";
-      else if (l.snd) t.className = "snd";
-      t.textContent = l.c;
-      s.appendChild(t);
-    });
+    if (item.kind === "fusion") {
+      const a = document.createElement("span"), b = document.createElement("span");
+      a.className = b.className = "part";
+      syl.forEach((l, j) => (j < item.split ? a : b).appendChild(letterSpan(l)));
+      s.append(a, b);
+    } else {
+      syl.forEach(l => s.appendChild(letterSpan(l)));
+    }
     el.appendChild(s);
   });
+  if (item.kind === "fusion" && !item.fused) el.classList.remove("arcs");
   stage.appendChild(el);
+  if (item.kind === "fusion") {
+    const h = document.createElement("div");
+    h.className = "fuse-hint";
+    h.textContent = item.fused ? "On lit le son entier" : "Dis chaque son en le faisant durer";
+    stage.appendChild(h);
+  }
   if (item.kind === "inv") {
     const tag = document.createElement("div");
     tag.className = "tag"; tag.textContent = "mot inventé";
     stage.appendChild(tag);
   }
   fit(el);
+  if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(refit);
 }
 
 function fit(el) {
-  const box = stage.clientWidth - 72;
+  const cs = getComputedStyle(stage);
+  const box = $("sheet").clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 12;
   const h = $("sheet").clientHeight;
   let size = Math.min(160, Math.max(48, h * 0.32));
+  el.style.maxWidth = "none";
+  el.style.width = "max-content";
   el.style.fontSize = size + "px";
+  // en fusion, on mesure l'écart maximum même si les sons sont déjà collés
+  const apart = el.classList.contains("fuse") && !el.classList.contains("fused");
   let guard = 0;
-  while (el.scrollWidth > box && size > 26 && guard++ < 40) {
-    size *= 0.92;
+  while (el.getBoundingClientRect().width > box && size > 24 && guard++ < 60) {
+    size *= 0.93;
     el.style.fontSize = size + "px";
   }
+  el.dataset.apart = apart ? "1" : "";
 }
+function refit() { const w = stage.querySelector(".word"); if (w) fit(w); }
 
 function show(i) {
   pos = i;
@@ -744,6 +797,14 @@ function show(i) {
   $("prevBtn").disabled = pos <= 0;
 }
 function next() {
+  const cur = history[pos];
+  if (cur && cur.kind === "fusion" && !cur.fused) {
+    cur.fused = true;
+    const w = stage.querySelector(".word");
+    if (w) { w.classList.add("fused"); if (!helpHidden && state.arcs) w.classList.add("arcs"); }
+    const h = stage.querySelector(".fuse-hint"); if (h) h.textContent = "On lit le son entier";
+    return;
+  }
   if (pos < history.length - 1) { show(pos + 1); return; }
   const item = draw();
   if (item) {
@@ -792,7 +853,7 @@ function buildPanel() {
   document.querySelectorAll('input[name="font"]').forEach(r => r.onchange = () => { state.font = r.value; display(); });
   $("optMuet").onchange = e => { state.muet = e.target.checked; custom(); };
   $("optHard").onchange = e => { state.hard = e.target.checked; custom(); };
-  $("optColor").onchange = e => { state.color = e.target.checked; display(); };
+  document.querySelectorAll('input[name="code"]').forEach(r => r.onchange = () => { state.code = r.value; display(); });
   $("optArcs").onchange = e => { state.arcs = e.target.checked; display(); };
   $("optBold").onchange = e => { state.bold = e.target.checked; display(); };
   $("optPaper").onchange = e => { state.paper = e.target.checked; display(); };
@@ -809,7 +870,9 @@ function syncPanel() {
   const m = document.querySelector(`input[name="mode"][value="${state.mode}"]`); if (m) m.checked = true;
   const f = document.querySelector(`input[name="font"][value="${state.font}"]`); if (f) f.checked = true;
   $("optMuet").checked = state.muet; $("optHard").checked = state.hard;
-  $("optColor").checked = state.color; $("optArcs").checked = state.arcs;
+  const cd = document.querySelector(`input[name="code"][value="${state.code}"]`); if (cd) cd.checked = true;
+  $("legend").hidden = state.code !== "alv";
+  $("optArcs").checked = state.arcs;
   $("optBold").checked = state.bold; $("optPaper").checked = state.paper;
   $("lenOut").textContent = state.maxLen >= 12 ? "sans limite" : state.maxLen + " lettres";
   SOUNDS.forEach(s => { $("snd-" + s.id).checked = state.sounds.includes(s.id); });
@@ -822,7 +885,7 @@ function syncChip() {
 }
 function updatePool() {
   const n = pool().length;
-  const extra = state.mode === "syll" ? " (mode syllabes : tirage illimité)"
+  const extra = state.mode === "fusion" ? " (fusion : tirage illimité)"
     : state.mode === "inv" ? " (mots inventés : tirage illimité)" : "";
   $("pool").innerHTML = `<b>${n}</b> vrai${n > 1 ? "s" : ""} mot${n > 1 ? "s" : ""} disponible${n > 1 ? "s" : ""} avec ces réglages${extra}.`;
 }
@@ -844,7 +907,7 @@ $("closeBtn").onclick = closePanel;
 $("helpBtn").onclick = () => {
   helpHidden = !helpHidden;
   $("helpBtn").setAttribute("aria-pressed", String(helpHidden));
-  $("helpBtn").title = helpHidden ? "Montrer les couleurs et les ponts" : "Cacher les couleurs et les ponts";
+  $("helpBtn").title = helpHidden ? "Montrer les couleurs" : "Cacher les couleurs";
   if (history[pos]) renderWord(history[pos]);
 };
 document.addEventListener("keydown", e => {
@@ -879,7 +942,10 @@ if ("serviceWorker" in navigator && document.querySelector('link[rel="manifest"]
 buildPanel();
 syncPanel();
 syncChip();
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { const w = stage.querySelector(".word"); if (w) fit(w); });
+if (document.fonts) {
+  document.fonts.ready.then(refit);
+  document.fonts.addEventListener && document.fonts.addEventListener("loadingdone", refit);
+}
 next();
 })();
 </script>

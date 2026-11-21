@@ -1,6 +1,6 @@
-# Lire avec les ponts
+# Lire avec Alvarez
 
-Petite appli web pour apprendre à lire : un mot à la fois, syllabes en couleur (rouge / bleu), ponts sous chaque syllabe, lettres muettes en gris.
+Petite appli web pour apprendre à lire, inspirée de la méthode de Céline Alvarez : un mot à la fois, voyelles en rouge, consonnes en bleu, sons à plusieurs lettres en vert, lettres muettes en gris. Exercice de fusion (m + a → ma) pour débuter. L'ancien affichage (syllabes rouge / bleu avec ponts) reste disponible dans les réglages.
 
 - 6 niveaux prêts à l'emploi, puis réglages fins : longueur maximum, lettres muettes, syllabes à 3 lettres, sons déjà appris (ou, on, an, ch…).
 - Vrais mots tirés au hasard sans répétition, ou **mots inventés** pour obliger à déchiffrer (utile pour les enfants qui retiennent les mots par cœur).
@@ -16,4 +16,4 @@ Petite appli web pour apprendre à lire : un mot à la fois, syllabes en couleur
 
 Activer GitHub Pages (Settings > Pages > branche) puis ouvrir l'adresse sur le téléphone et faire « Ajouter à l'écran d'accueil ». L'appli marche ensuite sans connexion.
 
-Retour en arrière : l'état initial du dépôt est marqué par le tag `sauvegarde-initiale`.
+Retour en arrière : tag `sauvegarde-initiale` (dépôt vide) et tag `avant-alvarez` (version syllabes colorées).
