@@ -1,5 +1,5 @@
 // Cache pour utiliser l'appli sans connexion
-const CACHE = "lire-v2";
+const CACHE = "lire-v3";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => {

@@ -111,6 +111,10 @@ body {
 .word.cursive { font-family: var(--font-cursive); line-height: 1.9; }
 .word.cursive .syl { padding-bottom: .02em; }
 .word.caps { text-transform: uppercase; letter-spacing: .03em; }
+.word.lower { text-transform: none; }
+.word.twin { animation: none; line-height: 1.3; opacity: .9; }
+.word.twin.cursive { line-height: 1.6; }
+.word.twin .syl { padding-bottom: 0; background: none; }
 @keyframes pop { from { opacity: .2; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .word { animation: none; } }
 
@@ -295,9 +299,17 @@ button:focus-visible, input:focus-visible + span { outline: 3px solid #f2b705; o
     <div class="group">
       <h3>Affichage</h3>
       <div class="seg" id="fontSeg">
+        <label><input type="radio" name="case" id="case-lower" value="lower"><span>minuscules</span></label>
+        <label><input type="radio" name="case" id="case-upper" value="upper"><span>MAJUSCULES</span></label>
+      </div>
+      <div class="seg" id="writeSeg" style="margin-top: 8px">
         <label><input type="radio" name="font" id="font-script" value="script"><span>Script</span></label>
         <label><input type="radio" name="font" id="font-cursive" value="cursive"><span style="font-family: var(--font-cursive)">Cursive</span></label>
-        <label><input type="radio" name="font" id="font-caps" value="caps"><span>CAPITALES</span></label>
+      </div>
+      <p class="hint" id="writeHint">Les majuscules s'affichent toujours en capitales d'imprimerie. Script ou cursive s'applique aux minuscules.</p>
+      <div class="row" style="margin-top: 8px">
+        <div class="row-text">Montrer aussi l'autre version en petit<small id="twinSmall">les majuscules sous le mot</small></div>
+        <label class="switch"><input type="checkbox" id="optTwin"><span></span></label>
       </div>
       <h3 style="margin-top: 18px">Couleurs</h3>
       <div class="seg" id="codeSeg">
@@ -623,7 +635,7 @@ const PRESETS = [
   { id: 5, name: "Niveau 5", desc: "Premiers sons en vert : ou, on, an, ch, oi", s: { mode: "mots", maxLen: 8, muet: true, hard: true, sounds: ["ou", "on", "an", "ch", "oi"] } },
   { id: 6, name: "Niveau 6", desc: "Tous les sons", s: { mode: "mots", maxLen: 12, muet: true, hard: true, sounds: SOUNDS.map(s => s.id) } }
 ];
-const DEFAULTS = { preset: 1, ...PRESETS[0].s, font: "script", code: "alv", arcs: false, bold: false, paper: true };
+const DEFAULTS = { preset: 1, ...PRESETS[0].s, font: "script", upper: false, twin: false, code: "alv", arcs: false, bold: false, paper: true };
 const KEY = "lire-alvarez-v1";
 
 function load() {
@@ -637,6 +649,7 @@ function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
 }
 let state = load();
+if (state.font === "caps") { state.font = "script"; state.upper = true; }
 let readCount = 0;
 let helpHidden = false;
 
@@ -713,36 +726,12 @@ function renderWord(item) {
     stage.appendChild(d);
     return;
   }
-  const el = document.createElement("div");
-  const showAids = !helpHidden;
-  el.className = ["word", state.font,
-    showAids && state.code === "syl" ? "color" : "",
-    showAids && state.code === "alv" ? "alv" : "",
-    item.kind === "fusion" ? "fuse" : "", item.fused ? "fused" : "",
-    showAids && state.arcs ? "arcs" : "",
-    showAids && state.bold ? "bold" : ""].filter(Boolean).join(" ");
-  el.setAttribute("aria-label", item.w.syls.flat().map(l => l.c).join(""));
-  const letterSpan = l => {
-    const t = document.createElement("span");
-    t.className = l.m ? "m" : ["l" + (l.k || "c"), l.snd ? "snd" : ""].join(" ").trim();
-    t.textContent = l.c;
-    return t;
-  };
-  item.w.syls.forEach((syl, i) => {
-    const s = document.createElement("span");
-    s.className = "syl c" + (i % 2);
-    if (item.kind === "fusion") {
-      const a = document.createElement("span"), b = document.createElement("span");
-      a.className = b.className = "part";
-      syl.forEach((l, j) => (j < item.split ? a : b).appendChild(letterSpan(l)));
-      s.append(a, b);
-    } else {
-      syl.forEach(l => s.appendChild(letterSpan(l)));
-    }
-    el.appendChild(s);
-  });
-  if (item.kind === "fusion" && !item.fused) el.classList.remove("arcs");
+  const el = buildWord(item, state.upper, false);
   stage.appendChild(el);
+  if (state.twin) {
+    const tw = buildWord(item, !state.upper, true);
+    stage.appendChild(tw);
+  }
   if (item.kind === "fusion") {
     const h = document.createElement("div");
     h.className = "fuse-hint";
@@ -756,6 +745,43 @@ function renderWord(item) {
   }
   fit(el);
   if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(refit);
+}
+
+function buildWord(item, upper, twin) {
+  const el = document.createElement("div");
+  const showAids = !helpHidden;
+  const fuse = item.kind === "fusion" && !twin;
+  el.className = ["word", upper ? "caps script" : "lower " + state.font, twin ? "twin" : "",
+    showAids && state.code === "syl" ? "color" : "",
+    showAids && state.code === "alv" ? "alv" : "",
+    fuse ? "fuse" : "", fuse && item.fused ? "fused" : "",
+    showAids && state.arcs && !twin ? "arcs" : "",
+    showAids && state.bold ? "bold" : ""].filter(Boolean).join(" ");
+  if (twin) el.setAttribute("aria-hidden", "true");
+    showAids && state.code === "syl" ? "color" : "",
+    showAids && state.code === "alv" ? "alv" : "",
+  el.setAttribute("aria-label", item.w.syls.flat().map(l => l.c).join(""));
+  const letterSpan = l => {
+    const t = document.createElement("span");
+    t.className = l.m ? "m" : ["l" + (l.k || "c"), l.snd ? "snd" : ""].join(" ").trim();
+    t.textContent = l.c;
+    return t;
+  };
+  item.w.syls.forEach((syl, i) => {
+    const s = document.createElement("span");
+    s.className = "syl c" + (i % 2);
+    if (fuse) {
+      const a = document.createElement("span"), b = document.createElement("span");
+      a.className = b.className = "part";
+      syl.forEach((l, j) => (j < item.split ? a : b).appendChild(letterSpan(l)));
+      s.append(a, b);
+    } else {
+      syl.forEach(l => s.appendChild(letterSpan(l)));
+    }
+    el.appendChild(s);
+  });
+  if (fuse && !item.fused) el.classList.remove("arcs");
+  return el;
 }
 
 function fit(el) {
@@ -774,8 +800,14 @@ function fit(el) {
     el.style.fontSize = size + "px";
   }
   el.dataset.apart = apart ? "1" : "";
+  const tw = stage.querySelector(".word.twin");
+  if (tw) {
+    let ts = Math.max(22, size * 0.4);
+    tw.style.maxWidth = "none"; tw.style.width = "max-content"; tw.style.fontSize = ts + "px";
+    while (tw.getBoundingClientRect().width > box && ts > 16) { ts *= 0.93; tw.style.fontSize = ts + "px"; }
+  }
 }
-function refit() { const w = stage.querySelector(".word"); if (w) fit(w); }
+function refit() { const w = stage.querySelector(".word:not(.twin)"); if (w) fit(w); }
 
 function show(i) {
   pos = i;
@@ -837,6 +869,8 @@ function buildPanel() {
   });
   document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = () => { state.mode = r.value; custom(); });
   document.querySelectorAll('input[name="font"]').forEach(r => r.onchange = () => { state.font = r.value; display(); });
+  document.querySelectorAll('input[name="case"]').forEach(r => r.onchange = () => { state.upper = r.value === "upper"; display(); });
+  $("optTwin").onchange = e => { state.twin = e.target.checked; display(); };
   $("optMuet").onchange = e => { state.muet = e.target.checked; custom(); };
   $("optHard").onchange = e => { state.hard = e.target.checked; custom(); };
   document.querySelectorAll('input[name="code"]').forEach(r => r.onchange = () => { state.code = r.value; display(); });
@@ -855,6 +889,9 @@ function syncPanel() {
   PRESETS.forEach(p => $("preset-" + p.id).setAttribute("aria-pressed", String(state.preset === p.id)));
   const m = document.querySelector(`input[name="mode"][value="${state.mode}"]`); if (m) m.checked = true;
   const f = document.querySelector(`input[name="font"][value="${state.font}"]`); if (f) f.checked = true;
+  $(state.upper ? "case-upper" : "case-lower").checked = true;
+  $("optTwin").checked = state.twin;
+  $("twinSmall").textContent = state.upper ? "les minuscules sous le mot" : "les majuscules sous le mot";
   $("optMuet").checked = state.muet; $("optHard").checked = state.hard;
   const cd = document.querySelector(`input[name="code"][value="${state.code}"]`); if (cd) cd.checked = true;
   $("legend").hidden = state.code !== "alv";
