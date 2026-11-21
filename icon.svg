@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="110" fill="#fdfdfb"/>
+  <text x="150" y="300" font-family="Andika, Arial, sans-serif" font-size="210" font-weight="700" text-anchor="middle" fill="#d7263d">pa</text>
+  <text x="362" y="300" font-family="Andika, Arial, sans-serif" font-size="210" font-weight="700" text-anchor="middle" fill="#1f4fd1">pa</text>
+  <path d="M60 350 Q150 430 240 350" fill="none" stroke="#d7263d" stroke-width="22" stroke-linecap="round"/>
+  <path d="M272 350 Q362 430 452 350" fill="none" stroke="#1f4fd1" stroke-width="22" stroke-linecap="round"/>
+</svg>

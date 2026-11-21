@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e9eef8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lire">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Lire avec les ponts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Playwrite+FR+Moderne&display=swap">
+<style>
+/* Mise en page : une seule carte "cahier" plein écran, le mot au centre, un gros bouton en bas.
+   Les réglages vivent dans un panneau à part pour garder l'écran de lecture vide. */
+:root {
+  --page: #e9eef8;        /* fond de page, bleu ardoise très clair */
+  --paper: #fdfdfb;       /* la feuille */
+  --ink: #1f2440;         /* encre de l'interface */
+  --ink-soft: #5b6283;
+  --rule: #e3e8f6;        /* lignes Seyès */
+  --rule-strong: #cdd5ef;
+  --margin: #f5c3cd;      /* marge rouge du cahier */
+  --syl-a: #d7263d;       /* syllabe 1 : rouge */
+  --syl-b: #1f4fd1;       /* syllabe 2 : bleu */
+  --muet: #a7acbe;        /* lettres muettes */
+  --accent: #1f4fd1;
+  --accent-ink: #ffffff;
+  --chip: #dfe5f5;
+  --font-ui: "Andika", "Comic Sans MS", system-ui, sans-serif;
+  --font-script: "Andika", "Comic Sans MS", system-ui, sans-serif;
+  --font-cursive: "Playwrite FR Moderne", "Andika", cursive;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 16px;
+  box-sizing: border-box;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Barre du haut */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.level-chip {
+  border: 0; background: var(--chip); color: var(--ink);
+  font: 700 15px/1 var(--font-ui); padding: 10px 14px; border-radius: 999px;
+  cursor: pointer;
+}
+.count { font: 400 15px/1 var(--font-ui); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.count b { color: var(--ink); }
+.icon-btn {
+  width: 44px; height: 44px; border-radius: 50%; border: 0;
+  background: var(--chip); color: var(--ink); cursor: pointer;
+  display: grid; place-items: center;
+}
+.icon-btn svg { width: 22px; height: 22px; }
+.top-right { display: flex; gap: 8px; }
+.icon-btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* La feuille */
+.sheet {
+  position: relative;
+  background-color: var(--paper);
+  border-radius: 18px;
+  box-shadow: 0 1px 0 var(--rule), 0 10px 30px -18px rgba(31, 36, 64, .45);
+  overflow: hidden;
+  display: grid; place-items: center;
+  min-height: 0;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sheet.paper {
+  background-image:
+    linear-gradient(90deg, transparent 38px, var(--margin) 38px, var(--margin) 40px, transparent 40px),
+    repeating-linear-gradient(90deg, transparent 0 calc(2rem - 1px), var(--rule) calc(2rem - 1px) 2rem),
+    repeating-linear-gradient(0deg, transparent 0 calc(2rem - 1.5px), var(--rule-strong) calc(2rem - 1.5px) 2rem),
+    repeating-linear-gradient(0deg, transparent 0 calc(.5rem - 1px), color-mix(in srgb, var(--rule) 60%, transparent) calc(.5rem - 1px) .5rem);
+  background-position: 0 0, 40px 0, 0 0, 0 0;
+}
+.stage {
+  width: 100%;
+  padding: 24px 20px 30px 52px;
+  box-sizing: border-box;
+  text-align: center;
+  display: grid; justify-items: center; gap: 14px;
+}
+.word {
+  font-family: var(--font-script);
+  font-size: 120px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--ink);
+  max-width: 100%;
+  animation: pop .28s ease-out;
+}
+.word.cursive { font-family: var(--font-cursive); line-height: 1.9; }
+.word.cursive .syl { padding-bottom: .02em; }
+.word.caps { text-transform: uppercase; letter-spacing: .03em; }
+@keyframes pop { from { opacity: .2; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .word { animation: none; } }
+
+.syl {
+  padding-bottom: .2em;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  background-size: calc(100% - .16em) .3em;
+}
+.word.script .syl + .syl, .word.caps .syl + .syl { margin-left: .07em; }
+.word.color .syl.c0 { color: var(--syl-a); }
+.word.color .syl.c1 { color: var(--syl-b); }
+.word.arcs.color .syl.c0 { background-image: var(--arc-a); }
+.word.arcs.color .syl.c1 { background-image: var(--arc-b); }
+.word.arcs:not(.color) .syl { background-image: var(--arc-ink); }
+.word .m { color: var(--muet); }
+.word.bold .snd { font-weight: 700; }
+.word.cursive.bold .snd { font-weight: 400; }
+
+.tag {
+  font: 400 15px/1.2 var(--font-ui); color: var(--ink-soft);
+  background: var(--chip); padding: 6px 12px; border-radius: 999px;
+}
+.empty { max-width: 30ch; font-size: 19px; line-height: 1.5; color: var(--ink-soft); }
+.empty button { margin-top: 12px; }
+
+/* Barre du bas */
+.bottom { display: grid; grid-template-columns: 64px 1fr; gap: 12px; }
+.btn {
+  border: 0; border-radius: 20px; cursor: pointer;
+  font: 700 24px/1 var(--font-ui);
+  min-height: 72px;
+}
+.btn-next { background: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 0 #14348f; }
+.btn-next:active { transform: translateY(4px); box-shadow: 0 2px 0 #14348f; }
+.btn-prev { background: var(--chip); color: var(--ink); }
+.btn-prev:disabled { opacity: .4; cursor: default; }
+.btn-prev svg { width: 28px; height: 28px; }
+button:focus-visible, input:focus-visible + span { outline: 3px solid #f2b705; outline-offset: 2px; }
+
+/* Panneau des réglages */
+.panel {
+  position: fixed; inset: 0; z-index: 20;
+  background: var(--page);
+  overflow-y: auto;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.panel-inner {
+  max-width: 640px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+  display: grid; gap: 22px;
+}
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.panel h2 { font: 700 26px/1.1 var(--font-ui); margin: 0; }
+.panel h3 { font: 700 14px/1 var(--font-ui); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); margin: 0 0 10px; }
+.group { background: var(--paper); border-radius: 16px; padding: 16px; }
+.hint { font-size: 14px; color: var(--ink-soft); margin: 8px 0 0; line-height: 1.4; }
+.presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.preset {
+  text-align: left; border: 2px solid transparent; background: var(--chip); color: var(--ink);
+  border-radius: 14px; padding: 12px; cursor: pointer; font: 400 14px/1.3 var(--font-ui);
+}
+.preset b { display: block; font-size: 17px; margin-bottom: 2px; }
+.preset[aria-pressed="true"] { border-color: var(--accent); background: #fff; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg label, .chips label { position: relative; cursor: pointer; }
+.seg input, .chips input, .switch input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span, .chips span {
+  display: inline-block; padding: 10px 14px; border-radius: 999px;
+  background: var(--chip); font: 400 16px/1 var(--font-ui);
+}
+.seg input:checked + span, .chips input:checked + span { background: var(--ink); color: var(--paper); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips span small { opacity: .7; font-size: 13px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.row + .row { border-top: 1px solid var(--chip); }
+.row-text { min-width: 0; }
+.row-text small { display: block; color: var(--ink-soft); font-size: 14px; margin-top: 2px; }
+.switch { position: relative; flex: none; cursor: pointer; }
+.switch span { display: block; width: 52px; height: 30px; border-radius: 999px; background: var(--rule); position: relative; transition: background .15s; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(22px); }
+.stepper { display: flex; align-items: center; gap: 10px; }
+.stepper button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--chip); font: 700 22px/1 var(--font-ui); color: var(--ink); cursor: pointer; }
+.stepper output { min-width: 7ch; text-align: center; font: 700 18px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+.pool { font-size: 15px; color: var(--ink-soft); }
+.pool b { color: var(--ink); }
+.btn-close { background: var(--accent); color: var(--accent-ink); padding: 0 22px; min-height: 48px; font-size: 18px; border-radius: 999px; }
+.sample { font-family: var(--font-script); font-size: 34px; line-height: 1.5; }
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <button class="level-chip" id="levelChip" type="button">Niveau 2</button>
+    <div class="count" id="count" aria-live="polite"><b>0</b> lu</div>
+    <div class="top-right">
+      <button class="icon-btn" id="helpBtn" type="button" aria-pressed="false" title="Cacher les couleurs et les ponts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" type="button" title="Réglages" aria-label="Réglages">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="sheet paper" id="sheet">
+    <div class="stage" id="stage"></div>
+  </main>
+
+  <footer class="bottom">
+    <button class="btn btn-prev" id="prevBtn" type="button" aria-label="Mot précédent" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="btn btn-next" id="nextBtn" type="button">Suivant</button>
+  </footer>
+</div>
+
+<section class="panel" id="panel" hidden aria-label="Réglages">
+  <div class="panel-inner">
+    <div class="panel-head">
+      <h2>Réglages</h2>
+      <button class="btn btn-close" id="closeBtn" type="button">C'est parti</button>
+    </div>
+
+    <div>
+      <h3>Niveaux</h3>
+      <div class="presets" id="presets"></div>
+      <p class="hint">Un niveau règle tout d'un coup. Vous pouvez ensuite ajuster chaque option ci-dessous.</p>
+    </div>
+
+    <div class="group">
+      <h3>Quoi lire</h3>
+      <div class="seg" id="modeSeg">
+        <label><input type="radio" name="mode" id="mode-syll" value="syll"><span>Syllabes</span></label>
+        <label><input type="radio" name="mode" id="mode-mots" value="mots"><span>Vrais mots</span></label>
+        <label><input type="radio" name="mode" id="mode-inv" value="inv"><span>Mots inventés</span></label>
+        <label><input type="radio" name="mode" id="mode-mix" value="mix"><span>Mélange</span></label>
+      </div>
+      <p class="hint">Les mots inventés obligent à déchiffrer : impossible de les reconnaître par cœur.</p>
+    </div>
+
+    <div class="group">
+      <h3>Difficulté</h3>
+      <div class="row">
+        <div class="row-text">Longueur maximum<small>Nombre de lettres du mot</small></div>
+        <div class="stepper">
+          <button type="button" id="lenMinus" aria-label="Moins de lettres">−</button>
+          <output id="lenOut">4 lettres</output>
+          <button type="button" id="lenPlus" aria-label="Plus de lettres">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-text">Lettres muettes<small>en gris : robe, lit, chat</small></div>
+        <label class="switch"><input type="checkbox" id="optMuet"><span></span></label>
+      </div>
+      <div class="row">
+        <div class="row-text">Syllabes à 3 lettres<small>bra, tro, par, sel</small></div>
+        <label class="switch"><input type="checkbox" id="optHard"><span></span></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Sons déjà appris</h3>
+      <div class="chips" id="sounds"></div>
+      <p class="hint">Seuls les mots dont tous les sons sont cochés apparaissent. Rien de coché : uniquement des sons simples (a, i, o, u, é, è, e).</p>
+    </div>
+
+    <div class="group">
+      <h3>Affichage</h3>
+      <div class="seg" id="fontSeg">
+        <label><input type="radio" name="font" id="font-script" value="script"><span>Script</span></label>
+        <label><input type="radio" name="font" id="font-cursive" value="cursive"><span style="font-family: var(--font-cursive)">Cursive</span></label>
+        <label><input type="radio" name="font" id="font-caps" value="caps"><span>CAPITALES</span></label>
+      </div>
+      <div class="row" style="margin-top: 8px">
+        <div class="row-text">Syllabes en couleur<small>rouge, bleu, rouge…</small></div>
+        <label class="switch"><input type="checkbox" id="optColor"><span></span></label>
+      </div>
+      <div class="row">
+        <div class="row-text">Ponts sous les syllabes</div>
+        <label class="switch"><input type="checkbox" id="optArcs"><span></span></label>
+      </div>
+      <div class="row">
+        <div class="row-text">Sons en gras<small>ch, ou, on… ressortent (écriture script)</small></div>
+        <label class="switch"><input type="checkbox" id="optBold"><span></span></label>
+      </div>
+      <div class="row">
+        <div class="row-text">Fond cahier</div>
+        <label class="switch"><input type="checkbox" id="optPaper"><span></span></label>
+      </div>
+    </div>
+
+    <p class="pool" id="pool"></p>
+  </div>
+</section>
+
+<script>
+(() => {
+"use strict";
+
+/* ------------------------------------------------------------------
+   LISTE DE MOTS
+   Écriture : syllabes séparées par « - », lettres muettes entre ( ).
+   Exemple : ro-b(e)   cha(t)   (h)i-bou
+   Les sons composés, les syllabes difficiles et la longueur sont
+   calculés automatiquement : il suffit d'ajouter un mot ici.
+------------------------------------------------------------------- */
+const RAW = `
+a-mi pa-pa la-ma mo-to vé-lo ki-lo ju-do so-fa tu-tu ti-pi bé-bé ca-fé do-do co-co ka-ki
+é-té é-pi é-mu é-lu pa-pi jo-li po-li ra-vi fi-ni mi-di pu-ma zé-bu mé-mé pé-pé vé-to lo-to
+mo-ka mi-ni ba-ba u-ni sa-lé do-ré vo-lé ta-pé ti-ré ma-ri pa-ri vi-dé pâ-té bâ-ti râ-pé zé-ro
+dé-fi é-cu lu vu bu nu dé né ma ta sa la le de je me ne te va ô
+do-mi-no la-va-bo nu-mé-ro ki-mo-no sa-la-mi sa-fa-ri ca-na-pé pé-da-lo ma-ca-ro-ni ka-ra-té
+ju-do-ka o-pé-ra ko-a-la pi-a-no ra-di-o ca-mé-ra li-mi-té dé-mo-dé ra-mo-né a-bî-mé a-ni-mé
+sa-me-di vé-ri-té
+ro-b(e) lu-n(e) mu-r(e) pi-p(e) ca-p(e) da-m(e) ra-m(e) la-m(e) li-m(e) ri-m(e) pi-l(e) ba-l(e)
+sa-l(e) ma-l(e) mu-l(e) ju-p(e) to-m(e) do-m(e) ru-d(e) vi-d(e) mi-n(e) dî-n(e) pu-r(e) fu-m(e)
+ni(d) li(t) ri(z) ra(t) lo(t) po(t) do(s) pa(s) ta(s) mo(t) so(t) ju(s) pu(s) bo(t) fé(e) vi(e) pi(e) ru(e) nu(e)
+pa-ra-d(e) sa-la-d(e) ma-la-d(e) ba-na-n(e) ca-ba-n(e) to-ma-t(e) pi-ra-t(e) pi-lo-t(e) tu-li-p(e)
+li-mo-na-d(e) bo-li-d(e) ra-pi-d(e) so-li-d(e) vi-ta-mi-n(e) ca-ra-bi-n(e) mé-lo-di(e) a-vo-ca(t)
+ro-bo(t) sa-lu(t) ra-di(s) ta-pi(s) ca-ra-f(e) fu-mé(e) pu-ré(e) a-mi(e) ma-mi(e) mo-mi(e) bo-bi-n(e)
+co-pi-n(e) ma-ri-n(e) mi-nu-t(e) ca-ra-va-n(e) sa-va-n(e) pé-ta-l(e) pa-ta-t(e) ma-la-di(e) co-mé-di(e)
+ta-ti(e) a-mi-ca-l(e) ma-ri-é(e) é-pé(e) ca-ba-n(e)
+(h)a-bi(t) (h)a-ri-co(t) mo-la-r(e) ma-li-n(e) ra-vi-n(e) pa-ni-qu(e)
+ta-bl(e) sa-bl(e) câ-bl(e) fa-bl(e) ti-gr(e) zè-br(e) li-vr(e) lè-vr(e) cra-b(e) fri-t(e) pla-n(e)
+plu-m(e) flû-t(e) glo-b(e) pla-nè-t(e) cra-va-t(e) fri-go pré-fé-ré pré bra(s) dra(p) tri-co(t)
+pro-pr(e) mar-di mar-mi-t(e) tor-tu(e) ar-bi-tr(e) ar-tis-t(e) pis-t(e) pos-t(e) por-t(e)
+ves-t(e) res-t(e) ver-r(e) ter-r(e) bel-l(e) sel-l(e) pel-l(e) per-l(e) fer-m(e) per-du fer-mé
+ter-mi-né ver-du-r(e) ca-ra-mel a-ni-mal cro-co-di-l(e) ca-rot-t(e) bal-l(e) mal-l(e) vil-l(e)
+sel mer fer bec sac lac sec col bol sol vol fil mur dur pur bar car par or il os bus sur
+ne(z) ver(t) po-le(t) ro-bi-ne(t) na-ve(t) fi-le(t) vo-le(t) mu-le(t) cha-le(t) bon-ne(t)
+ar-br(e) mar-br(e) ca-dr(e) pou-dr(e)
+tra-pè-z(e) ca-na-r(d) ar-mu-r(e) par-ti mor-du ca-pi-tal ti-tr(e) for-t(e)
+a-vec
+pri-vé prê-t(e) brû-lé
+lou(p) chou cou fou mou trou rou(e) jou(e) pou-l(e) bou-l(e) mou-l(e) fou-l(e) rou-t(e) sou-p(e)
+lou-p(e) bi-jou ge-nou cou-cou dou-dou tou-tou bou(t) tou(t) our(s) four jour tour lour(d) sour(d)
+sou-ri(s) cou-d(e) pou-pé(e) bou-ch(e) mou-ch(e) dou-ch(e) cou-ch(e) tou-pi(e) pou roux nou-nour(s)
+lou-v(e) dou-z(e) (h)i-bou ma-ra-bou(t) ca-ri-bou kan-gou-rou mous-ti-qu(e) bou-ti-qu(e) pou-c(e) dou-c(e)
+bon son ton mon pon(t) ron(d) lon(g) nom non bal-lon me-lon ci-tron bon-bon mou-ton li-on a-vi-on
+ca-mi-on sa-von sa-lon ta-lon pom-pon con-com-br(e) om-br(e) pom-p(e) dra-gon mai-son co-chon pois-son
+gar-çon pan-ta-lon vi-o-lon jam-bon bou-chon po-ti-ron bi-be-ron ma-ca-ron tor-chon bou-ton car-ton
+bal-con mon-d(e) ron-d(e) mon-ta-gn(e) gui-don le-çon ma-çon
+ma-man den(t) ven(t) len(t) ban(c) blan(c) gan(t) plan-t(e) tan-t(e) lam-p(e) jam-b(e)
+cham-br(e) o-ran-g(e) é-lé-phan(t) en-fan(t) ser-pen(t) di-man-ch(e) chan(t) ru-ban vol-can o-cé-an
+pan-da man-ch(e) ven-tr(e) tem-pê-t(e) men-ton en-tr(e) con-ten(t) pen-du-l(e) dan-s(e) pé-li-can
+san-da-l(e) la-van-d(e) a-man-d(e) an a-man(t) gé-an(t) kan-gou-rou
+la-pin sa-pin ma-tin vin pin lin fin mou-lin jar-din dau-phin lu-tin re-quin pous-sin cous-sin
+des-sin pain main bain train grain nain de-main co-pain tim-br(e) lun-di brun un par-fum
+ma-rin che-min pa-tin sa-tin cou-sin rai-sin voi-sin plein frein ma-lin
+roi loi moi toi noi(x) boi(s) moi(s) poi-r(e) é-toi-l(e) voi-tu-r(e) oi-seau poi(s) toi(t) boî-t(e)
+fram-boi-s(e) ar-moi-r(e) mou-choir mi-roir ti-roir noir soir boi-r(e) troi(s) froi(d) poi-l(e) voi-l(e)
+cha(t) che-val cha-peau ni-ch(e) va-ch(e) ri-ch(e) bi-ch(e) ru-ch(e) bû-ch(e) ca-ch(e) ta-ch(e)
+po-ch(e) ro-ch(e) clo-ch(e) cho-co-la(t) cha-meau cha-ton ma-chi-n(e) chè-vr(e) mar-ch(e) cho-s(e)
+che-mi-s(e) chi-pi(e) cha-pi-tr(e) ar-ti-chau(t) mâ-ch(e)
+pho-to pha-r(e) pho-qu(e) al-pha-be(t) né-nu-phar té-lé-pho-n(e) phar-ma-ci(e)
+li-gn(e) cy-gn(e) si-gn(e) vi-gn(e) cam-pa-gn(e) pei-gn(e) a-gneau ga-gné cham-pi-gnon
+qua-tr(e) mas-qu(e) bar-qu(e) cas-qu(e) bri-qu(e) mu-si-qu(e) qui é-qui-p(e) ban-qu(e) pla-qu(e)
+li-qui-d(e) fla-qu(e)
+gui-ta-r(e) ba-gu(e) va-gu(e) lan-gu(e) guê-p(e) fi-gu(e) bla-gu(e) lon-gu(e)
+ci-ré ce-ri-s(e) ci-né-ma gla-c(e) pu-c(e) po-li-c(e) li-ma-c(e) su-cet-t(e) ra-ci-n(e) pla-c(e)
+tra-c(e) ci-bl(e) cir-qu(e) la-ce(t) fa-ci-l(e) pis-ci-n(e) re-çu ca-ra-pa-c(e) é-pi-c(e) ma-li-c(e)
+pa-g(e) ca-g(e) ti-g(e) na-g(e) gi-ra-f(e) gi-le(t) nei-g(e) rou-g(e) ma-gi(e) bou-gi(e) pla-g(e)
+lu-g(e) nu-a-g(e) i-ma-g(e) fro-ma-g(e) ga-ra-g(e) o-ra-g(e) ba-ga-g(e) vi-sa-g(e) gé-ni-al
+ro-s(e) ru-s(e) va-s(e) ca-s(e) mu-sé(e) va-li-s(e) fu-sé(e) u-si-n(e) cui-si-n(e) bi-s(e) fri-s(e)
+di-no-sau-r(e) ar-ro-sé
+feu jeu peu bleu deu(x) fleur peur cœur sœur nœu(d) œuf che-veu ne-veu jeu-di meu-bl(e)
+dan-seur mo-teur ac-teur fac-teur chan-teur doc-teur trac-teur cou-leur o-deur va-peur
+eau beau peau seau veau ba-teau gâ-teau râ-teau man-teau mar-teau ca-deau ri-deau tau-reau
+châ-teau dra-peau pin-ceau au au-to jau-n(e) sau-c(e) chau(d) é-pau-l(e) au-tru-ch(e) lan-dau
+lai(t) mai ai-l(e) lai-n(e) grai-n(e) chai-s(e) frai-s(e) se-mai-n(e) ba-lai crai(e) ai-gl(e)
+ba-lei-n(e) rei-n(e) trei-z(e) sei-z(e) ai-man(t) fon-tai-n(e) ca-pi-tai-n(e) vrai pa-lai(s)
+sty-lo py-ja-ma tri-cy-cl(e) yo-yo ta-xi bo-x(e) sa-xo ma-xi lu-x(e)
+ro-cher dî-ner goû-ter sau-ter dan-ser man-ger na-ger clo-cher ber-ger bou-cher
+`;
+
+/* ------------------------------------------------------------------
+   ANALYSE DES MOTS
+------------------------------------------------------------------- */
+const VOWELS = new Set([..."aeiouyéèêëàâîïôûùœ"]);
+const NORM = { "î": "i", "â": "a", "à": "a", "ô": "o", "û": "u", "ù": "u" };
+const nrm = c => NORM[c] || c;
+const isVowel = c => VOWELS.has(c);
+const SOFT_NEXT = new Set([..."eiyéèêë"]);
+
+// [graphème, groupe] du plus long au plus court
+const GRAPHEMES = [
+  ["eau", "au"], ["ain", "in"], ["aim", "in"], ["ein", "in"], ["oin", "oi"],
+  ["œu", "eu"], ["ou", "ou"], ["oi", "oi"], ["on", "on"], ["om", "on"],
+  ["an", "an"], ["am", "an"], ["en", "an"], ["em", "an"],
+  ["in", "in"], ["im", "in"], ["un", "in"], ["um", "in"],
+  ["ai", "ai"], ["ei", "ai"], ["au", "au"], ["eu", "eu"],
+  ["ch", "ch"], ["ph", "ph"], ["gn", "gn"], ["qu", "qu"], ["gu", "qu"]
+];
+const CONS_GRAPH = new Set(["ch", "ph", "gn", "qu", "gu"]);
+
+const SOUNDS = [
+  { id: "ou", label: "ou", ex: "loup" },
+  { id: "on", label: "on / om", ex: "bonbon" },
+  { id: "an", label: "an / en", ex: "maman" },
+  { id: "in", label: "in / ain / un", ex: "lapin" },
+  { id: "oi", label: "oi", ex: "roi" },
+  { id: "ai", label: "ai / ei", ex: "lait" },
+  { id: "au", label: "au / eau", ex: "bateau" },
+  { id: "eu", label: "eu / œu", ex: "feu" },
+  { id: "ch", label: "ch", ex: "chat" },
+  { id: "ph", label: "ph", ex: "photo" },
+  { id: "gn", label: "gn", ex: "ligne" },
+  { id: "qu", label: "qu / gu", ex: "requin" },
+  { id: "c", label: "c = s", ex: "glace" },
+  { id: "g", label: "g = j", ex: "page" },
+  { id: "z", label: "s = z", ex: "rose" },
+  { id: "e", label: "e = è / é", ex: "mer, nez" },
+  { id: "x", label: "x", ex: "taxi" },
+  { id: "y", label: "y", ex: "stylo" }
+];
+
+function parse(markup) {
+  return markup.split("-").map(part => {
+    const letters = [];
+    let muet = false;
+    for (const ch of part) {
+      if (ch === "(") { muet = true; continue; }
+      if (ch === ")") { muet = false; continue; }
+      letters.push({ c: ch, m: muet, snd: false });
+    }
+    return letters;
+  });
+}
+
+function analyse(markup) {
+  const syls = parse(markup);
+  const flat = [];
+  syls.forEach((s, si) => s.forEach((l, li) => flat.push({ l, si, li })));
+  const groups = new Set();
+  let muet = false;
+  let hard = false;
+  let len = 0;
+
+  syls.forEach((syl, si) => {
+    len += syl.length;
+    if (syl.some(l => l.m)) muet = true;
+    const spoken = syl.filter(l => !l.m);
+    const units = []; // "V" ou "C"
+    let i = 0;
+    while (i < spoken.length) {
+      let matched = null;
+      for (const [g, grp] of GRAPHEMES) {
+        const n = [...g].length;
+        if (i + n > spoken.length) continue;
+        const seq = spoken.slice(i, i + n).map(l => nrm(l.c)).join("");
+        if (seq !== g) continue;
+        const last = g[g.length - 1];
+        if ((last === "n" || last === "m") && !CONS_GRAPH.has(g) && g !== "gn") {
+          // nasale seulement si pas suivie d'une voyelle ni d'un n/m doublé
+          const nxt = spoken[i + n];
+          if (nxt && (isVowel(nxt.c) || nxt.c === "n" || nxt.c === "m")) continue;
+          if (!nxt) {
+            const nextSyl = syls[si + 1];
+            const restMuet = syl.slice(syl.indexOf(spoken[i + n - 1]) + 1);
+            if (restMuet.some(l => isVowel(l.c))) continue;
+            if (nextSyl && nextSyl[0] && (nextSyl[0].c === "n" || nextSyl[0].c === "m")) continue;
+          }
+        }
+        if (g === "gu") {
+          const idx = flat.findIndex(f => f.l === spoken[i + 1]);
+          const after = flat[idx + 1];
+          if (!after || !SOFT_NEXT.has(nrm(after.l.c))) continue;
+        }
+        matched = [g, grp, n];
+        break;
+      }
+      if (matched) {
+        const [g, grp, n] = matched;
+        groups.add(grp);
+        for (let k = 0; k < n; k++) spoken[i + k].snd = true;
+        units.push(CONS_GRAPH.has(g) ? "C" : "V");
+        i += n;
+        continue;
+      }
+      const L = spoken[i];
+      const c = nrm(L.c);
+      const fi = flat.findIndex(f => f.l === L);
+      const prev = flat[fi - 1] ? flat[fi - 1].l : null;
+      const next = flat[fi + 1] ? flat[fi + 1].l : null;
+      if (c === "ç" || (c === "c" && next && SOFT_NEXT.has(nrm(next.c)))) { groups.add("c"); L.snd = true; }
+      else if (c === "g" && next && SOFT_NEXT.has(nrm(next.c))) { groups.add("g"); L.snd = true; }
+      else if (c === "s" && prev && next && isVowel(nrm(prev.c)) && isVowel(nrm(next.c))) { groups.add("z"); L.snd = true; }
+      else if (c === "x") { groups.add("x"); L.snd = true; }
+      else if (c === "y") { groups.add("y"); L.snd = true; }
+      else if (c === "e") {
+        const nx = syl[syl.indexOf(L) + 1];
+        if (nx && !isVowel(nrm(nx.c))) { groups.add("e"); L.snd = true; }
+      }
+      units.push(isVowel(c) && !(c === "y" && next && isVowel(nrm(next.c))) ? "V" : "C");
+      i += 1;
+    }
+    const pat = units.join("");
+    const muteEnd = pat === "C" && syl.some(l => l.m && isVowel(l.c));
+    if (!(pat === "V" || pat === "CV" || muteEnd)) hard = true;
+  });
+
+  return { markup, syls, groups, muet, hard, len };
+}
+
+const WORDS = [...new Set(RAW.split(/\s+/).filter(Boolean))]
+  .map(analyse);
+const KNOWN = new Set(WORDS.map(w => w.syls.flat().map(l => l.c).join("")));
+
+/* ------------------------------------------------------------------
+   MOTS INVENTÉS ET SYLLABES
+------------------------------------------------------------------- */
+const CONS = ["b", "c", "d", "f", "g", "j", "k", "l", "m", "n", "p", "r", "s", "t", "v", "z"];
+const CLUSTERS = ["bl", "br", "cl", "cr", "dr", "fl", "fr", "gl", "gr", "pl", "pr", "tr", "vr"];
+const VOW_SIMPLE = ["a", "i", "o", "u", "é", "è", "e"];
+const NUCLEI = { ou: ["ou"], on: ["on"], an: ["an"], in: ["in"], oi: ["oi"], ai: ["ai"], au: ["au", "eau"], eu: ["eu"] };
+const ONSETS = { ch: ["ch"], ph: ["ph"], gn: ["gn"], qu: ["qu"] };
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+function makeSyllable(opts, position, prevNucleus) {
+  for (let tries = 0; tries < 50; tries++) {
+    const onsets = [...CONS];
+    if (opts.hard) onsets.push(...CLUSTERS);
+    for (const k in ONSETS) if (opts.sounds.includes(k)) onsets.push(...ONSETS[k]);
+    const nuclei = [...VOW_SIMPLE];
+    for (const k in NUCLEI) if (opts.sounds.includes(k)) nuclei.push(...NUCLEI[k], ...NUCLEI[k]);
+    let onset = position === 0 && Math.random() < 0.12 ? "" : pick(onsets);
+    const nucleus = pick(nuclei);
+    const soft = /^[eiéè]/.test(nucleus) && nucleus !== "eau";
+    if ((onset === "c" || onset === "g") && soft) {
+      if (!opts.sounds.includes(onset)) continue;
+    }
+    if (onset === "qu" && nucleus.startsWith("u")) continue;
+    if (onset === "s" && position > 0 && !opts.sounds.includes("z")) continue;
+    if (onset === "" && position > 0) continue;
+    if (nucleus === "e" && (position === opts.last || onset === "")) continue;
+    if (prevNucleus && /[nm]$/.test(prevNucleus) && /^[nm]/.test(onset)) continue;
+    let coda = "";
+    if (opts.hard && nucleus.length === 1 && nucleus !== "e" && Math.random() < 0.25) coda = pick(["r", "l"]);
+    return { text: onset + nucleus + coda, nucleus };
+  }
+  return { text: "pa", nucleus: "a" };
+}
+
+function makeInvented(opts) {
+  for (let tries = 0; tries < 80; tries++) {
+    const maxSyl = opts.maxLen <= 3 ? 1 : opts.maxLen <= 5 ? 2 : 3;
+    const nSyl = opts.maxLen <= 3 ? 1 : 2 + Math.floor(Math.random() * (maxSyl - 1));
+    const parts = [];
+    let prev = null;
+    for (let p = 0; p < nSyl; p++) {
+      const s = makeSyllable({ ...opts, last: nSyl - 1 }, p, prev);
+      parts.push(s.text);
+      prev = s.nucleus;
+    }
+    const word = parts.join("");
+    if ([...word].length > opts.maxLen) continue;
+    if (KNOWN.has(word)) continue;
+    const a = analyse(parts.join("-"));
+    if (!fits(a, opts, true)) continue;
+    return a;
+  }
+  return analyse("pa-li");
+}
+
+function makeSyllableItem(opts) {
+  for (let t = 0; t < 30; t++) {
+    const s = makeSyllable({ ...opts, last: 1 }, 0, null);
+    const a = analyse(s.text);
+    if (a.syls[0].length && fits(a, { ...opts, maxLen: 9 }, true)) return a;
+  }
+  return analyse("ma");
+}
+
+/* ------------------------------------------------------------------
+   RÉGLAGES
+------------------------------------------------------------------- */
+const PRESETS = [
+  { id: 1, name: "Niveau 1", desc: "Syllabes simples", s: { mode: "syll", maxLen: 4, muet: false, hard: false, sounds: [] } },
+  { id: 2, name: "Niveau 2", desc: "Petits mots, 4 lettres", s: { mode: "mots", maxLen: 4, muet: false, hard: false, sounds: [] } },
+  { id: 3, name: "Niveau 3", desc: "Mots simples avec lettres muettes", s: { mode: "mots", maxLen: 6, muet: true, hard: false, sounds: [] } },
+  { id: 4, name: "Niveau 4", desc: "Syllabes à 3 lettres (bra, sel)", s: { mode: "mots", maxLen: 7, muet: true, hard: true, sounds: [] } },
+  { id: 5, name: "Niveau 5", desc: "Premiers sons : ou, on, oi, an, ch", s: { mode: "mots", maxLen: 8, muet: true, hard: true, sounds: ["ou", "on", "oi", "an", "ch"] } },
+  { id: 6, name: "Niveau 6", desc: "Tous les sons, tous les mots", s: { mode: "mots", maxLen: 12, muet: true, hard: true, sounds: SOUNDS.map(s => s.id) } }
+];
+const DEFAULTS = { preset: 2, ...PRESETS[1].s, font: "script", color: true, arcs: true, bold: true, paper: true };
+const KEY = "lire-ponts-v1";
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
+  } catch (e) {}
+  return { ...DEFAULTS };
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+}
+let state = load();
+let readCount = 0;
+let helpHidden = false;
+
+function fits(w, o, invented) {
+  if (!invented && w.len > o.maxLen) return false;
+  if (!invented && o.maxLen >= 6 && w.len <= 2) return false; // pas de « le », « ma »… aux niveaux avancés
+  if (!o.muet && w.muet) return false;
+  if (!o.hard && w.hard) return false;
+  for (const g of w.groups) if (!o.sounds.includes(g)) return false;
+  return true;
+}
+function pool() { return WORDS.filter(w => fits(w, state, false)); }
+
+/* ------------------------------------------------------------------
+   TIRAGE SANS RÉPÉTITION
+------------------------------------------------------------------- */
+let bag = [];
+let history = [];
+let pos = -1;
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function drawReal() {
+  if (!bag.length) {
+    const p = pool();
+    if (!p.length) return null;
+    bag = shuffle(p.slice());
+    const last = history[history.length - 1];
+    if (bag.length > 1 && last && bag[bag.length - 1].markup === last.markup) bag.unshift(bag.pop());
+  }
+  return bag.pop();
+}
+function draw() {
+  const m = state.mode;
+  if (m === "syll") return { w: makeSyllableItem(state), kind: "syll" };
+  if (m === "inv") return { w: makeInvented(state), kind: "inv" };
+  if (m === "mix" && Math.random() < 0.35) return { w: makeInvented(state), kind: "inv" };
+  const w = drawReal();
+  return w ? { w, kind: "mot" } : null;
+}
+
+/* ------------------------------------------------------------------
+   AFFICHAGE
+------------------------------------------------------------------- */
+const $ = id => document.getElementById(id);
+const stage = $("stage");
+
+function arcURI(color) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 30' preserveAspectRatio='none'><path d='M5 5 Q50 40 95 5' fill='none' stroke='${color}' stroke-width='6' stroke-linecap='round'/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+(function injectArcs() {
+  const cs = getComputedStyle(document.documentElement);
+  const a = cs.getPropertyValue("--syl-a").trim() || "#d7263d";
+  const b = cs.getPropertyValue("--syl-b").trim() || "#1f4fd1";
+  const ink = cs.getPropertyValue("--ink").trim() || "#1f2440";
+  document.documentElement.style.setProperty("--arc-a", arcURI(a));
+  document.documentElement.style.setProperty("--arc-b", arcURI(b));
+  document.documentElement.style.setProperty("--arc-ink", arcURI(ink));
+})();
+
+function renderWord(item) {
+  stage.textContent = "";
+  if (!item) {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.innerHTML = "Aucun mot ne correspond à ces réglages.<br>Ajoutez des sons ou des lettres.";
+    const b = document.createElement("button");
+    b.className = "level-chip"; b.type = "button"; b.textContent = "Ouvrir les réglages";
+    b.onclick = openPanel;
+    d.appendChild(b);
+    stage.appendChild(d);
+    return;
+  }
+  const el = document.createElement("div");
+  const showAids = !helpHidden;
+  el.className = ["word", state.font,
+    showAids && state.color ? "color" : "",
+    showAids && state.arcs ? "arcs" : "",
+    showAids && state.bold ? "bold" : ""].filter(Boolean).join(" ");
+  el.setAttribute("aria-label", item.w.syls.flat().map(l => l.c).join(""));
+  item.w.syls.forEach((syl, i) => {
+    const s = document.createElement("span");
+    s.className = "syl c" + (i % 2);
+    syl.forEach(l => {
+      const t = document.createElement("span");
+      if (l.m) t.className = "m";
+      else if (l.snd) t.className = "snd";
+      t.textContent = l.c;
+      s.appendChild(t);
+    });
+    el.appendChild(s);
+  });
+  stage.appendChild(el);
+  if (item.kind === "inv") {
+    const tag = document.createElement("div");
+    tag.className = "tag"; tag.textContent = "mot inventé";
+    stage.appendChild(tag);
+  }
+  fit(el);
+}
+
+function fit(el) {
+  const box = stage.clientWidth - 72;
+  const h = $("sheet").clientHeight;
+  let size = Math.min(160, Math.max(48, h * 0.32));
+  el.style.fontSize = size + "px";
+  let guard = 0;
+  while (el.scrollWidth > box && size > 26 && guard++ < 40) {
+    size *= 0.92;
+    el.style.fontSize = size + "px";
+  }
+}
+
+function show(i) {
+  pos = i;
+  renderWord(history[pos]);
+  $("prevBtn").disabled = pos <= 0;
+}
+function next() {
+  if (pos < history.length - 1) { show(pos + 1); return; }
+  const item = draw();
+  if (item) {
+    history.push(item);
+    if (history.length > 200) history.shift();
+    if (history.length > 1) { readCount++; updateCount(); }
+    show(history.length - 1);
+  } else {
+    renderWord(null);
+  }
+}
+function prev() { if (pos > 0) show(pos - 1); }
+function updateCount() {
+  $("count").innerHTML = `<b>${readCount}</b> ${readCount > 1 ? "lus" : "lu"}`;
+}
+function restart() {
+  bag = []; history = []; pos = -1;
+  next();
+}
+
+/* ------------------------------------------------------------------
+   PANNEAU DES RÉGLAGES
+------------------------------------------------------------------- */
+function buildPanel() {
+  const pr = $("presets");
+  PRESETS.forEach(p => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "preset"; b.id = "preset-" + p.id;
+    b.innerHTML = `<b>${p.name}</b>${p.desc}`;
+    b.onclick = () => { Object.assign(state, p.s, { sounds: [...p.s.sounds], preset: p.id }); syncPanel(); changed(); };
+    pr.appendChild(b);
+  });
+  const sw = $("sounds");
+  SOUNDS.forEach(s => {
+    const l = document.createElement("label");
+    l.innerHTML = `<input type="checkbox" id="snd-${s.id}" value="${s.id}"><span>${s.label} <small>${s.ex}</small></span>`;
+    l.querySelector("input").onchange = e => {
+      const set = new Set(state.sounds);
+      e.target.checked ? set.add(s.id) : set.delete(s.id);
+      state.sounds = SOUNDS.map(x => x.id).filter(id => set.has(id));
+      custom();
+    };
+    sw.appendChild(l);
+  });
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.onchange = () => { state.mode = r.value; custom(); });
+  document.querySelectorAll('input[name="font"]').forEach(r => r.onchange = () => { state.font = r.value; display(); });
+  $("optMuet").onchange = e => { state.muet = e.target.checked; custom(); };
+  $("optHard").onchange = e => { state.hard = e.target.checked; custom(); };
+  $("optColor").onchange = e => { state.color = e.target.checked; display(); };
+  $("optArcs").onchange = e => { state.arcs = e.target.checked; display(); };
+  $("optBold").onchange = e => { state.bold = e.target.checked; display(); };
+  $("optPaper").onchange = e => { state.paper = e.target.checked; display(); };
+  $("lenMinus").onclick = () => { state.maxLen = Math.max(2, state.maxLen - 1); custom(); };
+  $("lenPlus").onclick = () => { state.maxLen = Math.min(12, state.maxLen + 1); custom(); };
+}
+function custom() { state.preset = 0; syncPanel(); changed(); }
+function changed() { save(); syncChip(); updatePool(); dirty = true; }
+function display() { save(); syncPanel(); dirty = true; }
+let dirty = false;
+
+function syncPanel() {
+  PRESETS.forEach(p => $("preset-" + p.id).setAttribute("aria-pressed", String(state.preset === p.id)));
+  const m = document.querySelector(`input[name="mode"][value="${state.mode}"]`); if (m) m.checked = true;
+  const f = document.querySelector(`input[name="font"][value="${state.font}"]`); if (f) f.checked = true;
+  $("optMuet").checked = state.muet; $("optHard").checked = state.hard;
+  $("optColor").checked = state.color; $("optArcs").checked = state.arcs;
+  $("optBold").checked = state.bold; $("optPaper").checked = state.paper;
+  $("lenOut").textContent = state.maxLen >= 12 ? "sans limite" : state.maxLen + " lettres";
+  SOUNDS.forEach(s => { $("snd-" + s.id).checked = state.sounds.includes(s.id); });
+  $("sheet").classList.toggle("paper", state.paper);
+  updatePool();
+}
+function syncChip() {
+  const p = PRESETS.find(x => x.id === state.preset);
+  $("levelChip").textContent = p ? p.name : "Perso";
+}
+function updatePool() {
+  const n = pool().length;
+  const extra = state.mode === "syll" ? " (mode syllabes : tirage illimité)"
+    : state.mode === "inv" ? " (mots inventés : tirage illimité)" : "";
+  $("pool").innerHTML = `<b>${n}</b> vrai${n > 1 ? "s" : ""} mot${n > 1 ? "s" : ""} disponible${n > 1 ? "s" : ""} avec ces réglages${extra}.`;
+}
+function openPanel() { syncPanel(); $("panel").hidden = false; $("closeBtn").focus(); }
+function closePanel() {
+  $("panel").hidden = true;
+  syncChip();
+  if (dirty) { dirty = false; restart(); }
+}
+
+/* ------------------------------------------------------------------
+   ÉVÉNEMENTS
+------------------------------------------------------------------- */
+$("nextBtn").onclick = next;
+$("prevBtn").onclick = prev;
+$("settingsBtn").onclick = openPanel;
+$("levelChip").onclick = openPanel;
+$("closeBtn").onclick = closePanel;
+$("helpBtn").onclick = () => {
+  helpHidden = !helpHidden;
+  $("helpBtn").setAttribute("aria-pressed", String(helpHidden));
+  $("helpBtn").title = helpHidden ? "Montrer les couleurs et les ponts" : "Cacher les couleurs et les ponts";
+  if (history[pos]) renderWord(history[pos]);
+};
+document.addEventListener("keydown", e => {
+  if (!$("panel").hidden) { if (e.key === "Escape") closePanel(); return; }
+  if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") { if (e.target.tagName !== "BUTTON" || e.key === "ArrowRight") { e.preventDefault(); next(); } }
+  if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
+});
+let sx = null, sy = null;
+const sheet = $("sheet");
+sheet.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; });
+sheet.addEventListener("pointerup", e => {
+  if (sx === null) return;
+  const dx = e.clientX - sx, dy = e.clientY - sy;
+  sx = null;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { dx < 0 ? next() : prev(); }
+});
+window.addEventListener("resize", () => { const w = stage.querySelector(".word"); if (w) fit(w); });
+
+// Garder l'écran allumé pendant la lecture (si le téléphone l'accepte)
+let lock = null;
+async function keepAwake() {
+  try { if ("wakeLock" in navigator && !lock) { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => { lock = null; }); } } catch (e) {}
+}
+document.addEventListener("pointerdown", keepAwake, { once: false });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") lock = null; });
+
+// Mode hors ligne quand l'appli est installée depuis GitHub Pages
+if ("serviceWorker" in navigator && document.querySelector('link[rel="manifest"]')) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+buildPanel();
+syncPanel();
+syncChip();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { const w = stage.querySelector(".word"); if (w) fit(w); });
+next();
+})();
+</script>
+</body>
+</html>
